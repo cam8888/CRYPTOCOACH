@@ -1,7 +1,6 @@
 import streamlit as st
 import requests
 import pandas as pd
-import numpy as np
 
 # 1. Setup & Memory
 st.set_page_config(page_title="CryptoCoach", page_icon="💰", layout="wide")
@@ -25,6 +24,7 @@ st.title("CryptoCoach 🚀")
 st.markdown('<p class="welcome-text">Welcome! Learn everything about crypto without spending a single cent.</p>', unsafe_allow_html=True)
 
 # 2. Function to get Live Prices
+@st.cache_data(ttl=60)
 def get_crypto_price(coin_id):
     try:
         url = f"https://api.coingecko.com/api/v3/simple/price?ids={coin_id}&vs_currencies=usd"
@@ -32,6 +32,16 @@ def get_crypto_price(coin_id):
     except:
         backup = {"bitcoin": 65230, "ethereum": 3410, "solana": 145}
         return backup.get(coin_id)
+   
+@st.cache_data(ttl=300)
+def get_price_history(coin_id, days=7):
+    url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart?vs_currency=usd&days={days}"
+    reponse = requests.get(url, timeout=5)
+    donnees = reponse.json()
+    reponse.raise_for_status()
+    df = pd.DataFrame(donnees["prices"], columns=["date", "prix"])
+    df["date"] = pd.to_datetime(df["date"], unit="ms")
+    return df
 
 # --- SIDEBAR: YOUR REAL-TIME WALLET ---
 st.sidebar.header("🎒 Your Live Wallet")
@@ -97,13 +107,13 @@ with tab1:
         else:
             st.error("No cash left! Use the Reset button.")
 
-    with col1:
-        st.subheader(f"{choice.capitalize()} Live Chart")
-        chart_data = pd.DataFrame(
-            price + (np.random.randn(30, 1) * (price * 0.006)).cumsum(),
-            columns=['Price ($)']
-        )
-        st.line_chart(chart_data)
+with col1:
+    st.subheader(f"{choice.capitalize()} — Last 7 days")
+    try:
+        historique = get_price_history(choice)
+        st.line_chart(historique, x="date", y="prix")
+    except Exception:
+        st.warning("Price history is temporarily unavailable. Please try again in a minute.")
         
         # Dashboard Summary
         c1, c2 = st.columns(2)
