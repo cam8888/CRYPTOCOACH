@@ -4,7 +4,15 @@ import pandas as pd
 
 # 1. Setup & Memory
 st.set_page_config(page_title="CryptoCoach", page_icon="💰", layout="wide")
-st.caption("Made by Prizel, Camélia and Rania")
+
+
+# --- LOGIN ---
+if not st.user.is_logged_in:
+    st.title("CryptoCoach")
+    st.write("Sign in with your Google account to access your virtual portfolio.")
+    if st.button("Sign in with Google"):
+        st.login()
+    st.stop()
 
 if 'balance' not in st.session_state:
     st.session_state.balance = 10000.0 
@@ -42,6 +50,11 @@ def get_price_history(coin_id, days=7):
     df = pd.DataFrame(donnees["prices"], columns=["date", "prix"])
     df["date"] = pd.to_datetime(df["date"], unit="ms")
     return df
+
+# --- USER ACCOUNT ---
+st.sidebar.write(f"Signed in as **{st.user.name}**")
+if st.sidebar.button("Log out"):
+    st.logout()
 
 # --- SIDEBAR: YOUR REAL-TIME WALLET ---
 st.sidebar.header("🎒 Your Live Wallet")
