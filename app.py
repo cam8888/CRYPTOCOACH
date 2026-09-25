@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import pandas as pd
+from sqlalchemy import text
 
 # 1. Setup & Memory
 st.set_page_config(page_title="CryptoCoach", page_icon="💰", layout="wide")
@@ -14,10 +15,23 @@ if not st.user.is_logged_in:
         st.login()
     st.stop()
 
-if 'balance' not in st.session_state:
-    st.session_state.balance = 10000.0 
-if 'portfolio' not in st.session_state:
-    st.session_state.portfolio = {"bitcoin": 0.0, "ethereum": 0.0, "solana": 0.0}
+# --- DATABASE ---
+conn = st.connection("supabase", type="sql")
+email = st.user.email
+
+with conn.session as s:
+    s.execute(
+        text("insert into users (email, name) values (:email, :name) on conflict (email) do nothing;"),
+        {"email": email, "name": st.user.name},
+    )
+    s.commit()
+
+user = conn.query("select cash from users where email = :email;", params={"email": email}, ttl=0)
+st.session_state.balance = float(user["cash"].iloc[0])
+holdings = conn.query("select coin, amount from holdings where email = :email;", params={"email": email}, ttl=0)
+st.session_state.portfolio = {"bitcoin": 0.0, "ethereum": 0.0, "solana": 0.0}
+for _, row in holdings.iterrows():
+    st.session_state.portfolio[row["coin"]] = float(row["amount"])
 
 # Custom CSS for Dark Mode visibility
 st.markdown("""
@@ -45,11 +59,27 @@ def get_crypto_price(coin_id):
 def get_price_history(coin_id, days=7):
     url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart?vs_currency=usd&days={days}"
     reponse = requests.get(url, timeout=5)
-    donnees = reponse.json()
     reponse.raise_for_status()
+    donnees = reponse.json()
     df = pd.DataFrame(donnees["prices"], columns=["date", "prix"])
     df["date"] = pd.to_datetime(df["date"], unit="ms")
     return df
+
+def buy(email, coin, amount_usd, price):
+    quantity = amount_usd / price
+    params = {"email": email, "coin": coin, "qty": quantity, "price": price, "amount": amount_usd}
+    with conn.session as s:
+        s.execute(text("update users set cash = cash - :amount where email = :email;"), params)
+        s.execute(text("""
+            insert into holdings (email, coin, amount) values (:email, :coin, :qty)
+            on conflict (email, coin) do update set amount = holdings.amount + excluded.amount;
+        """), params)
+        s.execute(text("""
+            insert into transactions (email, coin, side, quantity, price, total)
+            values (:email, :coin, 'buy', :qty, :price, :amount);
+        """), params)
+        s.commit()
+    return quantity
 
 # --- USER ACCOUNT ---
 st.sidebar.write(f"Signed in as **{st.user.name}**")
@@ -112,22 +142,21 @@ with tab1:
             
             if st.button("🚀 CONFIRM PURCHASE"):
                 if amount_to_spend > 0:
-                    st.session_state.balance -= amount_to_spend
-                    st.session_state.portfolio[choice] += (amount_to_spend / price)
-                    st.success(f"Success! You bought {(amount_to_spend/price):.5f} {choice.upper()}.")
+                    quantity = buy(email, choice, amount_to_spend, price)
+                    st.toast(f"You bought {quantity:.5f} {choice.upper()}")
                     st.balloons()
                     st.rerun()
         else:
             st.error("No cash left! Use the Reset button.")
 
-with col1:
-    st.subheader(f"{choice.capitalize()} — Last 7 days")
-    try:
-        historique = get_price_history(choice)
-        st.line_chart(historique, x="date", y="prix")
-    except Exception:
-        st.warning("Price history is temporarily unavailable. Please try again in a minute.")
-        
+    with col1:
+        st.subheader(f"{choice.capitalize()} — Last 7 days")
+        try:
+            historique = get_price_history(choice)
+            st.line_chart(historique, x="date", y="prix")
+        except Exception:
+            st.warning("Price history is temporarily unavailable. Please try again in a minute.")
+
         # Dashboard Summary
         c1, c2 = st.columns(2)
         c1.metric("Crypto Assets Value", f"${total_crypto_value:,.2f}")
