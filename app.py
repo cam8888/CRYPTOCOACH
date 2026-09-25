@@ -104,6 +104,53 @@ def reset_account(email):
 
 
 
+def get_average_cost(email, coin):
+    # Average price paid for this coin, across all of this user's purchases.
+    result = conn.query("""
+        select sum(total) / sum(quantity) as avg_cost
+        from transactions
+        where email = :email and coin = :coin and side = 'buy';
+    """, params={"email": email, "coin": coin}, ttl=0)
+    avg = result["avg_cost"].iloc[0]
+    if pd.isna(avg):
+        return None
+    return float(avg)
+
+
+def buy_feedback(coin, quantity, price, amount_usd, cash_before, avg_cost_before):
+    message = f"You bought {quantity:.5f} {coin.upper()} at ${price:,.2f}."
+    if amount_usd > 0.5 * cash_before:
+        tip = ("You just put more than half of your cash into a single trade. "
+               "Buying in several smaller steps (DCA) reduces the risk of buying right before a drop.")
+    elif avg_cost_before is not None and price < avg_cost_before:
+        tip = (f"You bought below your average price (${avg_cost_before:,.2f}), which lowers it. "
+               "Only do this if you still believe in the asset, not just to 'get your money back'.")
+    elif avg_cost_before is not None:
+        tip = (f"You already own {coin.capitalize()}: this purchase raises your exposure to one asset. "
+               "Spreading your money across several assets limits the damage if one of them crashes.")
+    else:
+        tip = ("Before buying, set yourself a rule: at what price would you take profits, "
+               "and at what loss would you exit? Deciding in advance avoids emotional choices.")
+    return "info", message, tip
+
+
+def sell_feedback(coin, quantity, price, received, avg_cost):
+    if avg_cost is None:
+        return "info", f"You sold {quantity:.5f} {coin.upper()} for ${received:,.2f}.", ""
+    pnl = (price - avg_cost) * quantity
+    pnl_pct = (price / avg_cost - 1) * 100
+    message = (f"You sold {quantity:.5f} {coin.upper()} for ${received:,.2f}. "
+               f"You had paid ${avg_cost:,.2f} on average, so this sale is a "
+               f"{'gain' if pnl >= 0 else 'loss'} of ${abs(pnl):,.2f} ({pnl_pct:+.2f}%).")
+    if pnl >= 0:
+        tip = ("Taking part of your profits is a healthy habit. "
+               "In real life, remember that crypto gains are taxable and platforms charge fees.")
+        return "success", message, tip
+    tip = ("Selling after a drop locks in the loss. Ask yourself: has your reason for buying changed, "
+           "or are you selling out of fear? Panic selling is the most common beginner mistake.")
+    return "warning", message, tip
+
+
 # --- USER ACCOUNT ---
 st.sidebar.write(f"Signed in as **{st.user.name}**")
 if st.sidebar.button("Log out"):
@@ -126,11 +173,22 @@ for coin, amount in st.session_state.portfolio.items():
         value_in_usd = amount * current_p
         total_crypto_value += value_in_usd
         
+        # Gain or loss compared with the average buy price
+        avg_cost = get_average_cost(email, coin)
+        if avg_cost:
+            pnl = (current_p - avg_cost) * amount
+            pnl_pct = (current_p / avg_cost - 1) * 100
+            pnl_color = "#00C853" if pnl >= 0 else "#FF5252"
+            pnl_line = f'<span style="color: {pnl_color};">{pnl:+,.2f} $ ({pnl_pct:+.2f}%)</span>'
+        else:
+            pnl_line = ""
+
         # Display each coin with its current value
         st.sidebar.markdown(f"""
         <div class="portfolio-box">
             <b>{coin.capitalize()}</b>: {amount:.5f}<br>
-            <span style="color: #00FF00;">Value: ${value_in_usd:,.2f}</span>
+            Value: ${value_in_usd:,.2f}<br>
+            {pnl_line}
         </div>
         """, unsafe_allow_html=True)
 
@@ -160,6 +218,13 @@ with tab1:
 
         side = st.radio("Action", ["Buy", "Sell"], horizontal=True)
 
+        # Coaching feedback on the last trade (kept after the page reloads)
+        if "last_trade" in st.session_state:
+            level, message, tip = st.session_state.pop("last_trade")
+            getattr(st, level)(message)
+            if tip:
+                st.caption(f"💡 Coach tip: {tip}")
+
         if side == "Buy":
             max_spend = float(st.session_state.balance)
             if max_spend > 0:
@@ -167,8 +232,11 @@ with tab1:
 
                 if st.button("🚀 CONFIRM PURCHASE"):
                     if amount_to_spend > 0:
+                        avg_cost_before = get_average_cost(email, choice)
                         quantity = buy(email, choice, amount_to_spend, price)
-                        st.toast(f"You bought {quantity:.5f} {choice.upper()}")
+                        st.session_state.last_trade = buy_feedback(
+                            choice, quantity, price, amount_to_spend, max_spend, avg_cost_before
+                        )
                         st.rerun()
             else:
                 st.error("No cash left! Use the Reset button.")
@@ -185,8 +253,11 @@ with tab1:
 
                 if st.button("💸 CONFIRM SALE"):
                     if quantity_to_sell > 0:
+                        avg_cost = get_average_cost(email, choice)
                         received = sell(email, choice, quantity_to_sell, price)
-                        st.toast(f"You sold {quantity_to_sell:.5f} {choice.upper()} for ${received:,.2f}")
+                        st.session_state.last_trade = sell_feedback(
+                            choice, quantity_to_sell, price, received, avg_cost
+                        )
                         st.rerun()
             else:
                 st.info(f"You don't own any {choice.capitalize()} yet.")
