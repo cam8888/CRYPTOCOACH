@@ -117,6 +117,15 @@ def get_average_cost(email, coin):
     return float(avg)
 
 
+def get_transactions(email):
+    return conn.query("""
+        select created_at, side, coin, quantity, price, total
+        from transactions
+        where email = :email
+        order by created_at desc;
+    """, params={"email": email}, ttl=0)
+
+
 def buy_feedback(coin, quantity, price, amount_usd, cash_before, avg_cost_before):
     message = f"You bought {quantity:.5f} {coin.upper()} at ${price:,.2f}."
     if amount_usd > 0.5 * cash_before:
@@ -205,7 +214,7 @@ if st.sidebar.button("Reset Account"):
     st.rerun()
 
 # --- TABS ---
-tab1, tab2, tab3 = st.tabs(["📈 SIMULATOR", "📚 ACADEMY", "📰 NEWS"])
+tab1, tab_history, tab2, tab3 = st.tabs(["📈 SIMULATOR", "📜 HISTORY", "📚 ACADEMY", "📰 NEWS"])
 
 with tab1:
     col1, col2 = st.columns([2, 1])
@@ -274,6 +283,41 @@ with tab1:
         c1, c2 = st.columns(2)
         c1.metric("Crypto Assets Value", f"${total_crypto_value:,.2f}")
         c2.metric("Cash Left", f"${st.session_state.balance:,.2f}")
+
+with tab_history:
+    st.subheader("Your transactions")
+    history = get_transactions(email)
+
+    if history.empty:
+        st.info("No transactions yet. Make your first trade in the Simulator tab!")
+    else:
+        # Quick summary
+        buys = history[history["side"] == "buy"]
+        sells = history[history["side"] == "sell"]
+        h1, h2, h3 = st.columns(3)
+        h1.metric("Trades", len(history))
+        h2.metric("Total bought", f"${buys['total'].sum():,.2f}")
+        h3.metric("Total sold", f"${sells['total'].sum():,.2f}")
+
+        # Readable table
+        table = history.copy()
+        table["created_at"] = pd.to_datetime(table["created_at"], utc=True).dt.tz_convert("Europe/Paris").dt.strftime("%d/%m/%Y %H:%M")
+        table["side"] = table["side"].map({"buy": "🟢 Buy", "sell": "🔴 Sell"})
+        table["coin"] = table["coin"].str.capitalize()
+        table = table.rename(columns={
+            "created_at": "Date", "side": "Type", "coin": "Asset",
+            "quantity": "Quantity", "price": "Price ($)", "total": "Total ($)",
+        })
+        st.dataframe(
+            table,
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "Quantity": st.column_config.NumberColumn(format="%.6f"),
+                "Price ($)": st.column_config.NumberColumn(format="$%.2f"),
+                "Total ($)": st.column_config.NumberColumn(format="$%.2f"),
+            },
+        )
 
 with tab2:
     st.subheader("🎓 Academy: Master the Market")
