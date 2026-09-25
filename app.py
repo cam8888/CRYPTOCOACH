@@ -3,6 +3,8 @@ import requests
 import pandas as pd
 from sqlalchemy import text
 
+from academy import render_academy
+
 # 1. Setup & Memory
 st.set_page_config(page_title="CryptoCoach", page_icon="💰", layout="wide")
 
@@ -320,13 +322,7 @@ with tab_history:
         )
 
 with tab2:
-    st.subheader("🎓 Academy: Master the Market")
-    st.markdown("### 📝 INTERACTIVE QUIZ: FOMO")
-    q1 = st.radio("A friend tells you to buy a coin because 'it's going to the moon'. What do you do?", 
-                 ["Invest everything!", "Do my own research and stay calm."])
-    if st.button("Check Answer"):
-        if "research" in q1: st.success("Correct! DYOR (Do Your Own Research) is key.")
-        else: st.error("Wrong! That's how most beginners lose money.")
+    render_academy(conn, email)
 
 with tab3:
     st.subheader("📰 Crypto News & Tips")
