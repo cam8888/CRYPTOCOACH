@@ -1,18 +1,23 @@
+import { router } from 'expo-router';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { CoinRow } from '@/components/coin-row';
 import { Brand, Radius, Space } from '@/constants/brand';
 import { usePrices } from '@/hooks/use-prices';
+import { ALL_LESSONS } from '@/data/lessons';
 import { COINS } from '@/lib/coingecko';
 import { formatPercent, formatUsd } from '@/lib/format';
 import { useAppState } from '@/lib/app-state';
 import { STARTING_CASH, usePortfolio } from '@/lib/portfolio';
+import { useProgress } from '@/lib/progress';
 
 /** Home screen: the screen you check to see how your portfolio is doing. */
 export default function HomeScreen() {
   const { prices, loading, error, refresh } = usePrices();
   const portfolio = usePortfolio();
   const { replayOnboarding } = useAppState();
+  const { nextLessonId } = useProgress();
+  const nextLesson = ALL_LESSONS.find((l) => l.id === nextLessonId);
 
   const priceOf = (id: string) => prices.find((p) => p.id === id)?.price ?? 0;
   const cryptoValue = COINS.reduce((sum, coin) => sum + (portfolio.holdings[coin.id] ?? 0) * priceOf(coin.id), 0);
@@ -50,6 +55,16 @@ export default function HomeScreen() {
         )}
         <Text style={styles.balanceHint}>Cash dispo : {formatUsd(portfolio.cash)}</Text>
       </View>
+
+      {nextLesson && (
+        <Pressable
+          onPress={() => router.push({ pathname: '/lesson/[id]', params: { id: nextLesson.id } })}
+          style={({ pressed }) => [styles.lessonCard, pressed && { opacity: 0.8 }]}>
+          <Text style={styles.lessonKicker}>Ta leçon du jour</Text>
+          <Text style={styles.lessonTitle}>{nextLesson.title}</Text>
+          <Text style={styles.lessonMeta}>{nextLesson.minutes} min · +{nextLesson.xp} XP →</Text>
+        </Pressable>
+      )}
 
       <Text style={styles.sectionTitle}>Tes cryptos</Text>
       {owned.length === 0 ? (
@@ -100,6 +115,10 @@ const styles = StyleSheet.create({
   pnlPill: { alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: Radius.full, paddingVertical: 4, paddingHorizontal: 12 },
   pnlText: { color: '#FFFFFF', fontWeight: '700', fontSize: 13, fontVariant: ['tabular-nums'] },
   balanceHint: { color: 'rgba(255,255,255,0.85)', fontSize: 13 },
+  lessonCard: { backgroundColor: Brand.primarySoft, borderRadius: Radius.md, padding: Space.md, marginTop: Space.sm },
+  lessonKicker: { color: Brand.primary, fontSize: 13, fontWeight: '700', textTransform: 'uppercase' },
+  lessonTitle: { color: Brand.navy, fontSize: 18, fontWeight: '700', marginTop: Space.xs },
+  lessonMeta: { color: Brand.textSecondary, fontSize: 13, marginTop: 2 },
   sectionTitle: { fontSize: 20, fontWeight: '700', color: Brand.navy, marginTop: Space.lg },
   muted: { color: Brand.textSecondary, fontSize: 14, lineHeight: 20 },
   error: { color: Brand.danger, fontSize: 14 },

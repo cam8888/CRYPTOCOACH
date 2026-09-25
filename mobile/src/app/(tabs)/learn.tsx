@@ -1,14 +1,19 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Brand, Radius, Space } from '@/constants/brand';
 import { UNITS } from '@/data/lessons';
+import { usePortfolio } from '@/lib/portfolio';
+import { computeStreak, dayKey, useProgress } from '@/lib/progress';
 
-/**
- * Academy path, Duolingo style: one lesson unlocks the next.
- * For now only the first lesson is open; progress will come from Supabase.
- */
+/** Academy path, Duolingo style: finishing a lesson unlocks the next one. */
 export default function LearnScreen() {
-  const firstLessonId = UNITS[0].lessons[0].id;
+  const progress = useProgress();
+  const { transactions } = usePortfolio();
+
+  // Streak = consecutive days with a finished lesson OR a trade
+  const days = new Set([...progress.activeDays, ...transactions.map((t) => dayKey(new Date(t.date)))]);
+  const streak = computeStreak(days);
 
   return (
     <ScrollView style={styles.screen} contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.content}>
@@ -16,12 +21,12 @@ export default function LearnScreen() {
 
       <View style={styles.stats}>
         <View style={styles.stat}>
-          <Text style={styles.statValue}>0</Text>
+          <Text style={styles.statValue}>{progress.totalXp}</Text>
           <Text style={styles.statLabel}>⭐ XP</Text>
         </View>
         <View style={styles.stat}>
-          <Text style={styles.statValue}>0</Text>
-          <Text style={styles.statLabel}>🔥 jours</Text>
+          <Text style={styles.statValue}>{streak}</Text>
+          <Text style={styles.statLabel}>🔥 jour{streak > 1 ? 's' : ''} d'affilée</Text>
         </View>
       </View>
 
@@ -30,15 +35,29 @@ export default function LearnScreen() {
           <Text style={styles.unitKicker}>Unité {unitIndex + 1}</Text>
           <Text style={styles.unitTitle}>{unit.title}</Text>
           {unit.lessons.map((lesson) => {
-            const open = lesson.id === firstLessonId;
+            const result = progress.completed[lesson.id];
+            const unlocked = progress.isUnlocked(lesson.id);
+            const isNext = lesson.id === progress.nextLessonId;
             return (
-              <View key={lesson.id} style={[styles.lesson, open ? styles.lessonOpen : styles.lessonLocked]}>
-                <Text style={styles.lessonIcon}>{open ? '▶️' : '🔒'}</Text>
+              <Pressable
+                key={lesson.id}
+                disabled={!unlocked}
+                onPress={() => router.push({ pathname: '/lesson/[id]', params: { id: lesson.id } })}
+                style={({ pressed }) => [
+                  styles.lesson,
+                  result ? styles.lessonDone : isNext ? styles.lessonNext : styles.lessonLocked,
+                  pressed && { opacity: 0.7 },
+                ]}>
+                <Text style={styles.lessonIcon}>{result ? '✅' : unlocked ? '▶️' : '🔒'}</Text>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.lessonTitle, !open && styles.lockedText]}>{lesson.title}</Text>
-                  <Text style={styles.lessonXp}>+{lesson.xp} XP</Text>
+                  <Text style={[styles.lessonTitle, !unlocked && styles.lockedText]}>{lesson.title}</Text>
+                  <Text style={styles.lessonMeta}>
+                    {result
+                      ? `${result.score}/${lesson.questions.length} · +${result.xp} XP · touche pour rejouer`
+                      : `${lesson.minutes} min · +${lesson.xp} XP`}
+                  </Text>
                 </View>
-              </View>
+              </Pressable>
             );
           })}
         </View>
@@ -58,18 +77,12 @@ const styles = StyleSheet.create({
   unit: { gap: Space.sm, marginTop: Space.sm },
   unitKicker: { color: Brand.primary, fontSize: 13, fontWeight: '700', textTransform: 'uppercase' },
   unitTitle: { color: Brand.navy, fontSize: 20, fontWeight: '700', marginBottom: Space.xs },
-  lesson: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Space.md,
-    padding: Space.md,
-    borderRadius: Radius.md,
-    borderWidth: 2,
-  },
-  lessonOpen: { borderColor: Brand.primary, backgroundColor: Brand.primarySoft },
+  lesson: { flexDirection: 'row', alignItems: 'center', gap: Space.md, padding: Space.md, borderRadius: Radius.md, borderWidth: 2, borderBottomWidth: 4 },
+  lessonNext: { borderColor: Brand.primary, backgroundColor: Brand.primarySoft },
+  lessonDone: { borderColor: '#B7E9CF', backgroundColor: '#F2FBF6' },
   lessonLocked: { borderColor: Brand.border, backgroundColor: Brand.background },
   lessonIcon: { fontSize: 22 },
   lessonTitle: { fontSize: 16, fontWeight: '600', color: Brand.navy },
   lockedText: { color: Brand.textSecondary },
-  lessonXp: { fontSize: 13, color: Brand.xp, fontWeight: '700', marginTop: 2 },
+  lessonMeta: { fontSize: 13, color: Brand.textSecondary, marginTop: 2 },
 });

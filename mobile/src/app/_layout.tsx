@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { Brand } from '@/constants/brand';
 import { AppStateProvider } from '@/lib/app-state';
 import { PortfolioProvider } from '@/lib/portfolio';
+import { ProgressProvider } from '@/lib/progress';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -27,13 +28,16 @@ export default function RootLayout() {
     <ThemeProvider value={theme}>
       <AppStateProvider>
       <PortfolioProvider>
+      <ProgressProvider>
         <StatusBar style="dark" />
         <Stack screenOptions={{ headerTintColor: Brand.primary, headerShadowVisible: false }}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
           <Stack.Screen name="sign-in" options={{ headerShown: false, gestureEnabled: false }} />
           <Stack.Screen name="coin/[id]" options={{ title: '', headerBackTitle: 'Retour' }} />
+          <Stack.Screen name="lesson/[id]" options={{ headerShown: false, presentation: 'fullScreenModal', gestureEnabled: false }} />
         </Stack>
+      </ProgressProvider>
       </PortfolioProvider>
       </AppStateProvider>
     </ThemeProvider>
