@@ -81,6 +81,29 @@ def buy(email, coin, amount_usd, price):
         s.commit()
     return quantity
 
+def sell(email, coin, quantity, price):
+    amount_usd = quantity * price
+    params = {"email": email, "coin": coin, "qty": quantity, "price": price, "amount": amount_usd}
+    with conn.session as s:
+        s.execute(text("update users set cash = cash + :amount where email = :email;"), params)
+        s.execute(text("update holdings set amount = amount - :qty where email = :email and coin = :coin;"), params)
+        s.execute(text("""
+            insert into transactions (email, coin, side, quantity, price, total)
+            values (:email, :coin, 'sell', :qty, :price, :amount);
+        """), params)
+        s.commit()
+    return amount_usd
+
+def reset_account(email):
+    params = {"email": email}
+    with conn.session as s:
+        s.execute(text("update users set cash = 10000 where email = :email;"), params)
+        s.execute(text("delete from holdings where email = :email;"), params)
+        s.execute(text("delete from transactions where email = :email;"), params)
+        s.commit()
+
+
+
 # --- USER ACCOUNT ---
 st.sidebar.write(f"Signed in as **{st.user.name}**")
 if st.sidebar.button("Log out"):
@@ -120,8 +143,7 @@ net_worth = st.session_state.balance + total_crypto_value
 st.sidebar.metric("Total Net Worth", f"${net_worth:,.2f}", delta=f"{((net_worth/10000)-1)*100:.2f}%")
 
 if st.sidebar.button("Reset Account"):
-    st.session_state.balance = 10000.0
-    st.session_state.portfolio = {"bitcoin": 0.0, "ethereum": 0.0, "solana": 0.0}
+    reset_account(email)
     st.rerun()
 
 # --- TABS ---
@@ -132,22 +154,42 @@ with tab1:
     
     with col2:
         st.subheader("Market Action")
-        choice = st.selectbox("Select Asset to Buy", ["bitcoin", "ethereum", "solana"])
+        choice = st.selectbox("Select asset", ["bitcoin", "ethereum", "solana"])
         price = get_crypto_price(choice)
         st.metric(f"Current {choice.capitalize()} Price", f"${price:,}")
-        
-        max_spend = float(st.session_state.balance)
-        if max_spend > 0:
-            amount_to_spend = st.slider("Investment amount ($)", 0.0, max_spend, min(1000.0, max_spend))
-            
-            if st.button("🚀 CONFIRM PURCHASE"):
-                if amount_to_spend > 0:
-                    quantity = buy(email, choice, amount_to_spend, price)
-                    st.toast(f"You bought {quantity:.5f} {choice.upper()}")
-                    st.balloons()
-                    st.rerun()
+
+        side = st.radio("Action", ["Buy", "Sell"], horizontal=True)
+
+        if side == "Buy":
+            max_spend = float(st.session_state.balance)
+            if max_spend > 0:
+                amount_to_spend = st.slider("Investment amount ($)", 0.0, max_spend, min(1000.0, max_spend))
+
+                if st.button("🚀 CONFIRM PURCHASE"):
+                    if amount_to_spend > 0:
+                        quantity = buy(email, choice, amount_to_spend, price)
+                        st.toast(f"You bought {quantity:.5f} {choice.upper()}")
+                        st.rerun()
+            else:
+                st.error("No cash left! Use the Reset button.")
+
         else:
-            st.error("No cash left! Use the Reset button.")
+            owned = st.session_state.portfolio[choice]
+            if owned > 0:
+                quantity_to_sell = st.slider(
+                    f"Quantity to sell ({choice.upper()})",
+                    0.0, owned, owned,
+                    step=0.000001, format="%.6f",
+                )
+                st.caption(f"You will receive about ${quantity_to_sell * price:,.2f}")
+
+                if st.button("💸 CONFIRM SALE"):
+                    if quantity_to_sell > 0:
+                        received = sell(email, choice, quantity_to_sell, price)
+                        st.toast(f"You sold {quantity_to_sell:.5f} {choice.upper()} for ${received:,.2f}")
+                        st.rerun()
+            else:
+                st.info(f"You don't own any {choice.capitalize()} yet.")
 
     with col1:
         st.subheader(f"{choice.capitalize()} — Last 7 days")
