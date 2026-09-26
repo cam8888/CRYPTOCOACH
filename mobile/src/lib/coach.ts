@@ -4,7 +4,7 @@
  */
 import { formatPercent, formatUsd } from '@/lib/format';
 
-export type Feedback = { tone: 'good' | 'bad' | 'neutral'; message: string; tip: string };
+export type Feedback = { tone: 'good' | 'bad' | 'neutral'; message: string; tip: string; gain?: number };
 
 export function buyFeedback(
   symbol: string, quantity: number, price: number, amountUsd: number,
@@ -36,6 +36,7 @@ export function sellFeedback(
   if (pnl >= 0) {
     return {
       tone: 'good',
+      gain: pnl,
       message,
       tip: "Prendre une partie de ses gains, c'est une bonne habitude. Dans la vraie vie, pense aux frais des plateformes et aux impôts sur les plus-values.",
     };

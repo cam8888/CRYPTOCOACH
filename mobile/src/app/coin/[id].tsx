@@ -1,15 +1,18 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-  KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 
+import { Celebration } from '@/components/celebration';
+import { FoxTip } from '@/components/fox';
 import { PriceChart } from '@/components/price-chart';
-import { Brand, Radius, Space } from '@/constants/brand';
+import { Brand, Radius, Space, Font } from '@/constants/brand';
 import { usePrices } from '@/hooks/use-prices';
 import { buyFeedback, Feedback, sellFeedback } from '@/lib/coach';
 import { CoinId, COINS, fetchHistory, PricePoint } from '@/lib/coingecko';
 import { formatPercent, formatUsd } from '@/lib/format';
+import { vibrate } from '@/lib/haptics';
 import { averageCost, usePortfolio } from '@/lib/portfolio';
 
 const PERIODS = [
@@ -20,7 +23,7 @@ const PERIODS = [
 
 /** Coin screen: chart, your position, and buy / sell. */
 export default function CoinScreen() {
-  const { id } = useLocalSearchParams<{ id: CoinId }>();
+  const { id, side: initialSide } = useLocalSearchParams<{ id: CoinId; side?: 'buy' | 'sell' }>();
   const coin = COINS.find((c) => c.id === id) ?? COINS[0];
   const { prices } = usePrices();
   const price = prices.find((p) => p.id === coin.id)?.price;
@@ -29,9 +32,11 @@ export default function CoinScreen() {
   const [days, setDays] = useState(7);
   const [history, setHistory] = useState<PricePoint[]>([]);
   const [chartError, setChartError] = useState(false);
-  const [side, setSide] = useState<'buy' | 'sell'>('buy');
+  const [side, setSide] = useState<'buy' | 'sell'>(initialSide === 'sell' ? 'sell' : 'buy');
   const [input, setInput] = useState('');
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [celebrate, setCelebrate] = useState(false);
 
   useEffect(() => {
     setChartError(false);
@@ -56,18 +61,29 @@ export default function CoinScreen() {
     setInput(side === 'buy' ? amount.toFixed(2) : amount.toFixed(6));
   }
 
-  function confirm() {
-    if (!valid || price === undefined) return;
-    if (side === 'buy') {
-      const cashBefore = portfolio.cash;
-      const quantity = portfolio.buy(coin.id, value, price);
-      setFeedback(buyFeedback(coin.symbol, quantity, price, value, cashBefore, avgCost));
-    } else {
-      const quantity = Math.min(value, owned);
-      const received = portfolio.sell(coin.id, quantity, price);
-      setFeedback(sellFeedback(coin.symbol, quantity, price, received, avgCost));
+  async function confirm() {
+    if (!valid || price === undefined || busy) return;
+    setBusy(true);
+    try {
+      if (side === 'buy') {
+        const cashBefore = portfolio.cash;
+        const quantity = await portfolio.buy(coin.id, value, price);
+        vibrate.tap();
+        setFeedback(buyFeedback(coin.symbol, quantity, price, value, cashBefore, avgCost));
+      } else {
+        const quantity = Math.min(value, owned);
+        const received = await portfolio.sell(coin.id, quantity, price);
+        const result = sellFeedback(coin.symbol, quantity, price, received, avgCost);
+        setFeedback(result);
+        // Sold with a profit: time to celebrate!
+        if (result.gain && result.gain > 0) setCelebrate(true);
+      }
+      setInput('');
+    } catch (error) {
+      Alert.alert("L'opération n'a pas marché", (error as Error).message);
+    } finally {
+      setBusy(false);
     }
-    setInput('');
   }
 
   return (
@@ -102,7 +118,7 @@ export default function CoinScreen() {
               <Text style={styles.cardLine}>{owned.toFixed(6)} {coin.symbol} · {formatUsd(positionValue)}</Text>
               {avgCost && <Text style={styles.cardLine}>Prix moyen payé : {formatUsd(avgCost)}</Text>}
               {positionPnl !== null && (
-                <Text style={[styles.cardLine, { color: positionPnl >= 0 ? Brand.success : Brand.danger, fontWeight: '700' }]}>
+                <Text style={[styles.cardLine, { color: positionPnl >= 0 ? Brand.success : Brand.danger, fontFamily: Font.bold }]}>
                   {positionPnl >= 0 ? '+' : '−'}{formatUsd(Math.abs(positionPnl))} ({formatPercent((price! / avgCost! - 1) * 100)})
                 </Text>
               )}
@@ -146,18 +162,25 @@ export default function CoinScreen() {
 
         <Pressable
           onPress={confirm}
-          disabled={!valid}
-          style={({ pressed }) => [styles.button, !valid && styles.buttonDisabled, pressed && { backgroundColor: Brand.primaryDark }]}>
+          disabled={!valid || busy}
+          style={({ pressed }) => [styles.button, (!valid || busy) && styles.buttonDisabled, pressed && { backgroundColor: Brand.primaryDark }]}>
           <Text style={styles.buttonText}>{side === 'buy' ? `Acheter du ${coin.name}` : `Vendre du ${coin.name}`}</Text>
         </Pressable>
 
         {feedback && (
-          <View style={[styles.feedback, feedback.tone === 'good' && styles.feedbackGood, feedback.tone === 'bad' && styles.feedbackBad]}>
-            <Text style={styles.feedbackText}>{feedback.message}</Text>
-            {feedback.tip ? <Text style={styles.tip}>💡 {feedback.tip}</Text> : null}
+          <View style={{ gap: Space.sm }}>
+            <FoxTip tone={feedback.tone} text={feedback.message} />
+            {feedback.tip ? <FoxTip title="Le conseil du renard" text={feedback.tip} /> : null}
           </View>
         )}
       </ScrollView>
+      <Celebration
+        visible={celebrate}
+        title="Vente gagnante !"
+        amount={`+${formatUsd(feedback?.gain ?? 0)}`}
+        message="Bien joué ! Tu as vendu plus cher que ton prix moyen. Garde la tête froide pour la suite 🦊"
+        onClose={() => setCelebrate(false)}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -165,31 +188,31 @@ export default function CoinScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Brand.background },
   content: { padding: Space.lg, paddingBottom: 60, gap: Space.md },
-  price: { fontSize: 36, fontWeight: '700', color: Brand.navy, fontVariant: ['tabular-nums'] },
-  change: { fontSize: 15, fontWeight: '600', marginTop: -Space.sm },
-  muted: { color: Brand.textSecondary, fontSize: 14 },
+  price: { fontSize: 36, letterSpacing: -0.5, fontFamily: Font.bold, color: Brand.navy, fontVariant: ['tabular-nums'] },
+  change: { fontSize: 15, fontFamily: Font.semibold, marginTop: -Space.sm },
+  muted: { color: Brand.textSecondary, fontSize: 14 , fontFamily: Font.regular},
   segment: { flexDirection: 'row', backgroundColor: Brand.surface, borderRadius: Radius.full, padding: 4 },
   segmentItem: { flex: 1, paddingVertical: 10, borderRadius: Radius.full, alignItems: 'center' },
-  segmentActive: { backgroundColor: Brand.background, boxShadow: '0 1px 4px rgba(10,22,51,0.12)' },
-  segmentText: { color: Brand.textSecondary, fontWeight: '600' },
+  segmentActive: { backgroundColor: Brand.card, boxShadow: '0 1px 4px rgba(10,22,51,0.12)' },
+  segmentText: { color: Brand.textSecondary, fontFamily: Font.semibold },
   segmentTextActive: { color: Brand.primary },
   card: { backgroundColor: Brand.surface, borderRadius: Radius.md, padding: Space.md, gap: 4 },
-  cardTitle: { color: Brand.navy, fontWeight: '700', fontSize: 16, marginBottom: 2 },
-  cardLine: { color: Brand.navy, fontSize: 15, fontVariant: ['tabular-nums'] },
-  label: { color: Brand.navy, fontWeight: '600', fontSize: 14 },
+  cardTitle: { color: Brand.navy, fontFamily: Font.bold, fontSize: 16, marginBottom: 2 },
+  cardLine: { color: Brand.navy, fontSize: 15, fontFamily: Font.regular, fontVariant: ['tabular-nums'] },
+  label: { color: Brand.navy, fontFamily: Font.semibold, fontSize: 14 },
   input: {
     borderWidth: 2, borderColor: Brand.border, borderRadius: Radius.md, padding: Space.md,
-    fontSize: 22, fontWeight: '600', color: Brand.navy, fontVariant: ['tabular-nums'],
+    fontSize: 22, fontFamily: Font.semibold, color: Brand.navy, fontVariant: ['tabular-nums'], backgroundColor: Brand.card,
   },
   chips: { flexDirection: 'row', gap: Space.sm },
   chip: { backgroundColor: Brand.primarySoft, borderRadius: Radius.full, paddingVertical: 8, paddingHorizontal: 16 },
-  chipText: { color: Brand.primary, fontWeight: '700' },
+  chipText: { color: Brand.primary, fontFamily: Font.bold },
   button: { backgroundColor: Brand.primary, borderRadius: Radius.full, paddingVertical: 16, alignItems: 'center' },
   buttonDisabled: { opacity: 0.4 },
-  buttonText: { color: '#FFFFFF', fontSize: 17, fontWeight: '700' },
+  buttonText: { color: '#FFFFFF', fontSize: 17, fontFamily: Font.bold },
   feedback: { backgroundColor: Brand.primarySoft, borderRadius: Radius.md, padding: Space.md, gap: Space.sm },
   feedbackGood: { backgroundColor: '#E7F8EF' },
   feedbackBad: { backgroundColor: '#FDECEA' },
-  feedbackText: { color: Brand.navy, fontSize: 15, lineHeight: 21 },
-  tip: { color: Brand.navy, fontSize: 14, lineHeight: 20 },
+  feedbackText: { color: Brand.navy, fontSize: 15, fontFamily: Font.regular, lineHeight: 21 },
+  tip: { color: Brand.navy, fontSize: 14, fontFamily: Font.regular, lineHeight: 20 },
 });

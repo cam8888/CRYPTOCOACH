@@ -1,7 +1,7 @@
 import { Link } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Brand, Radius, Space } from '@/constants/brand';
+import { Brand, Radius, Space, Font } from '@/constants/brand';
 import { CoinId } from '@/lib/coingecko';
 import { formatPercent, formatUsd } from '@/lib/format';
 
@@ -50,11 +50,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badgeText: { color: Brand.primary, fontWeight: '700', fontSize: 16 },
+  badgeText: { color: Brand.primary, fontFamily: Font.bold, fontSize: 16 },
   names: { flex: 1 },
-  name: { color: Brand.navy, fontSize: 16, fontWeight: '600' },
-  symbol: { color: Brand.textSecondary, fontSize: 13, marginTop: 2 },
+  name: { color: Brand.navy, fontSize: 16, fontFamily: Font.semibold },
+  symbol: { color: Brand.textSecondary, fontSize: 13, fontFamily: Font.regular, marginTop: 2 },
   values: { alignItems: 'flex-end' },
-  price: { color: Brand.navy, fontSize: 16, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  change: { fontSize: 13, marginTop: 2, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  price: { color: Brand.navy, fontSize: 16, fontFamily: Font.semibold, fontVariant: ['tabular-nums'] },
+  change: { fontSize: 13, marginTop: 2, fontFamily: Font.semibold, fontVariant: ['tabular-nums'] },
 });

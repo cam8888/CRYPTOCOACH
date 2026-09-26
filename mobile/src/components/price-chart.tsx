@@ -54,3 +54,24 @@ export function PriceChart({ points, height = 200 }: Props) {
 const styles = StyleSheet.create({
   box: { width: '100%' },
 });
+
+/** Small line with no axes (the Trade screen's 7-day trend). */
+export function Sparkline({ prices, width, height = 44 }: { prices: number[]; width: number; height?: number }) {
+  if (prices.length < 2) return <View style={{ width, height }} />;
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const range = max - min || 1;
+  const line = prices
+    .map((price, i) => {
+      const x = (i / (prices.length - 1)) * width;
+      const y = 3 + (1 - (price - min) / range) * (height - 6);
+      return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+  const color = prices[prices.length - 1] >= prices[0] ? Brand.success : Brand.danger;
+  return (
+    <Svg width={width} height={height}>
+      <Path d={line} stroke={color} strokeWidth={2} fill="none" strokeLinejoin="round" strokeLinecap="round" />
+    </Svg>
+  );
+}

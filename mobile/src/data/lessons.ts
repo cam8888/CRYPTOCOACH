@@ -5,7 +5,15 @@
  * Rewrite freely: the screens adapt automatically.
  */
 export type Question = { question: string; choices: string[]; answer: number; explanation: string };
-export type Lesson = { id: string; title: string; minutes: number; xp: number; cards: string[]; questions: Question[] };
+export type Lesson = {
+  id: string;
+  title: string;
+  minutes: number;
+  xp: number;
+  cards: string[];
+  questions: Question[];
+  kind?: 'lesson' | 'exam'; // 'exam' = the bigger quiz at the end of a unit
+};
 export type Unit = { id: string; title: string; lessons: Lesson[] };
 
 export const UNITS: Unit[] = [
@@ -72,6 +80,46 @@ export const UNITS: Unit[] = [
             choices: ['Vrai', 'Faux'],
             answer: 1,
             explanation: "Faux. Un projet jeune est en général plus risqué, pas moins.",
+          },
+        ],
+      },
+      {
+        id: 'basics-exam',
+        kind: 'exam',
+        title: "Défi de l'unité : les bases",
+        minutes: 4,
+        xp: 30,
+        cards: [],
+        questions: [
+          {
+            question: "Ta cousine te dit : « Le Bitcoin, c'est la banque de France qui le gère. » Tu lui réponds…",
+            choices: ["Oui, comme l'euro", 'Non, aucune banque ni aucun État ne le contrôle', 'Non, c\'est Elon Musk', 'Oui, depuis 2020'],
+            answer: 1,
+            explanation: 'Le Bitcoin est décentralisé : il tourne sur des milliers d\'ordinateurs, sans patron.',
+          },
+          {
+            question: "Pourquoi dit-on que la blockchain est difficile à trafiquer ?",
+            choices: ['Parce qu\'elle est secrète', 'Parce qu\'elle est publique et vérifiée par tout le réseau', 'Parce qu\'elle est stockée dans une banque', 'Parce qu\'elle est gratuite'],
+            answer: 1,
+            explanation: 'Tout le monde a une copie du registre : modifier une ligne, ce serait devoir convaincre tout le réseau.',
+          },
+          {
+            question: "Le Bitcoin passe de 60 000 $ à 54 000 $ en une journée. C'est…",
+            choices: ['Impossible', 'Une baisse de 10 %, fréquente en crypto', 'Une baisse de 6 %', 'La preuve que c\'est fini'],
+            answer: 1,
+            explanation: '6 000 ÷ 60 000 = 10 %. Ce genre de mouvement arrive régulièrement : c\'est la volatilité.',
+          },
+          {
+            question: "Laquelle de ces cryptos a une quantité maximale fixée à l'avance ?",
+            choices: ['Bitcoin', 'Ethereum', 'Solana', 'Aucune'],
+            answer: 0,
+            explanation: 'Il n\'existera jamais plus de 21 millions de bitcoins.',
+          },
+          {
+            question: 'Tu as 1 000 € d\'économies pour tes études. Combien mettre en crypto ?',
+            choices: ['Tout, pour maximiser les gains', 'Seulement ce que tu peux te permettre de perdre', 'Emprunter en plus', 'Tout sur la crypto la plus récente'],
+            answer: 1,
+            explanation: 'La règle d\'or : n\'investir que l\'argent dont tu n\'as pas besoin, parce que tu peux le perdre.',
           },
         ],
       },
@@ -143,6 +191,46 @@ export const UNITS: Unit[] = [
           },
         ],
       },
+      {
+        id: 'trading-exam',
+        kind: 'exam',
+        title: "Défi de l'unité : trader sans paniquer",
+        minutes: 4,
+        xp: 30,
+        cards: [],
+        questions: [
+          {
+            question: 'Une crypto a pris +80 % cette semaine et tout TikTok en parle. Le piège ?',
+            choices: ['Le FOMO : acheter tout en haut', 'La vente panique', 'Le DCA', 'Il n\'y a aucun piège'],
+            answer: 0,
+            explanation: 'Acheter parce que tout le monde en parle, souvent après la hausse, c\'est le FOMO.',
+          },
+          {
+            question: 'Tu achètes 500 $ de BTC à 50 000 $, puis 500 $ à 25 000 $. Ton prix moyen ?',
+            choices: ['37 500 $', 'Environ 33 333 $', '25 000 $', '50 000 $'],
+            answer: 1,
+            explanation: '0,01 + 0,02 = 0,03 BTC pour 1 000 $. 1 000 ÷ 0,03 ≈ 33 333 $ : tu as acheté plus quand c\'était bas.',
+          },
+          {
+            question: 'Ton plan : « Je garde mon ETH au moins 1 an. » Il baisse de 20 % en 2 jours. Tu…',
+            choices: ['Vends tout pour limiter la casse', 'Relis ton plan : rien n\'a changé, tu gardes', 'Achètes une autre crypto en panique', 'Supprimes l\'appli'],
+            answer: 1,
+            explanation: 'Si ta raison d\'investir n\'a pas changé, une baisse ne suffit pas à vendre. C\'est pour ça qu\'on fixe son plan avant.',
+          },
+          {
+            question: 'Laquelle de ces stratégies est du DCA ?',
+            choices: ['Mettre 1 200 $ d\'un coup en janvier', 'Mettre 100 $ le 1er de chaque mois', 'Acheter uniquement quand un influenceur le dit', 'Vendre dès que ça baisse'],
+            answer: 1,
+            explanation: 'Même somme, à intervalles réguliers : c\'est exactement le DCA.',
+          },
+          {
+            question: 'Tu revends à 40 000 $ un BTC acheté 50 000 $ en moyenne. Résultat ?',
+            choices: ['Un gain de 20 %', 'Une perte de 20 %', 'Une perte de 10 %', 'Ni gain ni perte'],
+            answer: 1,
+            explanation: '40 000 ÷ 50 000 − 1 = −20 %. En vendant, la perte devient définitive.',
+          },
+        ],
+      },
     ],
   },
   {
@@ -180,6 +268,46 @@ export const UNITS: Unit[] = [
           },
         ],
       },
+      {
+        id: 'safety-exam',
+        kind: 'exam',
+        title: "Défi de l'unité : rester en sécurité",
+        minutes: 4,
+        xp: 30,
+        cards: [],
+        questions: [
+          {
+            question: 'Un compte « officiel » annonce : « Envoie 1 ETH, on t\'en renvoie 2 ! » C\'est…',
+            choices: ['Un cadeau promotionnel', 'Une arnaque classique', 'Un airdrop normal', 'Une erreur de frappe'],
+            answer: 1,
+            explanation: 'Personne ne double ton argent. Ces faux « giveaways » sont l\'arnaque crypto la plus répandue.',
+          },
+          {
+            question: 'Tu reçois un mail : « Ton compte va être bloqué, connecte-toi ici. » Le bon réflexe ?',
+            choices: ['Cliquer vite pour éviter le blocage', 'Ouvrir toi-même l\'appli officielle, sans cliquer sur le lien', 'Répondre avec ton mot de passe', 'Transférer le mail à tes amis'],
+            answer: 1,
+            explanation: 'C\'est du phishing : les faux liens copient le vrai site pour voler tes identifiants.',
+          },
+          {
+            question: 'Où garder ta phrase secrète de 12 mots ?',
+            choices: ['En photo dans ta galerie', 'Écrite sur papier, rangée en lieu sûr', 'Dans tes notes partagées', 'Envoyée à toi-même par mail'],
+            answer: 1,
+            explanation: 'Hors ligne, c\'est le plus sûr : une photo ou un mail peuvent être piratés.',
+          },
+          {
+            question: 'Quel est le signal d\'alarme n°1 d\'une arnaque ?',
+            choices: ['Un gain « garanti »', 'Un site en anglais', 'Des frais de transaction', 'Un prix qui bouge'],
+            answer: 0,
+            explanation: 'Aucun investissement réel ne peut garantir un gain.',
+          },
+          {
+            question: 'Ton mot de passe a fuité, mais tu as activé la 2FA. Que se passe-t-il ?',
+            choices: ['Le pirate entre quand même', 'Le pirate est bloqué sans ton deuxième code', 'Ton compte est supprimé', 'Rien ne change'],
+            answer: 1,
+            explanation: 'Avec la 2FA, le mot de passe seul ne suffit plus : c\'est ta deuxième barrière.',
+          },
+        ],
+      },
     ],
   },
 ];
@@ -187,5 +315,12 @@ export const UNITS: Unit[] = [
 /** All lessons in the order they must be completed. */
 export const ALL_LESSONS: Lesson[] = UNITS.flatMap((unit) => unit.lessons);
 
-/** At least 2 right answers out of 3 to pass a lesson. */
-export const PASS_RATIO = 2 / 3;
+/** To pass: 2 right answers out of 3 for a lesson, 4 out of 5 for a unit challenge. */
+export function passRatio(lesson: Lesson): number {
+  return lesson.kind === 'exam' ? 0.8 : 2 / 3;
+}
+
+/** Virtual dollars added to the portfolio the first time a lesson is passed. */
+export function cashReward(lesson: Lesson): number {
+  return lesson.kind === 'exam' ? 1000 : 500;
+}
